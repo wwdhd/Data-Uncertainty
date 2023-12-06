@@ -78,7 +78,7 @@ w_mean = mean(w_smpl, 1);
 w_std = std(w_smpl);
 
 %Plotting the Mean and STD
-figure(3)
+figure(2)
 plot(x_smpl,u_mean,':r',LineWidth=2)
 hold on
 plot(x_smpl,v_mean,'--b',LineWidth=2)
@@ -94,7 +94,7 @@ grid on
 hold off
 
 %STD
-figure(4)
+figure(3)
 plot(x_smpl,u_std,':r',LineWidth=2)
 hold on
 plot(x_smpl,v_std,'--b',LineWidth=2)
@@ -112,8 +112,7 @@ hold off
 % wall-normal direction. The other two has near zero value and thus can be ignored.|
 
 w_grad = gradient(w_mean);
-figure(5)
-figure(5)
+figure(4)
 plot(x_smpl, w_grad, '-k', 'LineWidth', 2)
 title('$\textbf{Mean Streamwise Velocity Gradient}$', 'Interpreter', 'latex', 'FontSize', 14)
 xlabel('$t$', 'Interpreter', 'latex', 'FontSize', 14)
@@ -145,7 +144,7 @@ y = linspace(y0, 1, N); % Wall-normal distance array
 w_a = (u_t / kappa) * log(y / y0);
 
 % Plotting the von Kármán logarithmic law profile
-figure(6);
+figure(5);
 plot(y, w_a, '-o', 'LineWidth', 2);
 title('von Kármán Logarithmic Law of the Wall');
 xlabel('$x/\delta$','Interpreter','latex','FontSize',14);
@@ -172,7 +171,7 @@ u_int_area = u_smpl(:, index);
 v_int_area = v_smpl(:, index);
 w_int_area = w_smpl(:, index);
 
-figure(7)
+figure(6)
 title('$\textbf{Wall Normal Velocity Signal}$','Interpreter','latex','FontSize',14)
 plot(t_smpl,u_int_area,':r',LineWidth=2)
 hold on
@@ -187,6 +186,57 @@ hold off
 %% 
 % |Then the FFT transformation can be made.|
 
+% Compute FFT 
+Fs = 1 / (t_smpl(2) - t_smpl(1));  % Sampling frequency
+L = length(u_int_area);  % Length of the signal
+
+% Apply window functions to the signals
+window_types = {'rectwin', 'hann', 'hamming', 'blackman'}; % Window types to try
+
+figure;
+for i = 1:length(window_types)
+    windowed_u = u_int_area .* feval(window_types{i}, length(u_int_area)); % Apply window function to u_int_area
+    windowed_v = v_int_area .* feval(window_types{i}, length(v_int_area)); % Apply window function to v_int_area
+    windowed_w = w_int_area .* feval(window_types{i}, length(w_int_area)); % Apply window function to w_int_area
+    
+    % Compute single-sided FFT for windowed signals
+    Y_u = fft(windowed_u);
+    P2_u = abs(Y_u / L);
+    P1_u = P2_u(1:L/2+1);
+    f_u = Fs*(0:(L/2))/L;
+
+    Y_v = fft(windowed_v);
+    P2_v = abs(Y_v / L);
+    P1_v = P2_v(1:L/2+1);
+    f_v = Fs*(0:(L/2))/L;
+
+    Y_w = fft(windowed_w);
+    P2_w = abs(Y_w / L);
+    P1_w = P2_w(1:L/2+1);
+    f_w = Fs*(0:(L/2))/L;
+
+    % Plot single-sided FFT for windowed signals
+    subplot(length(window_types),3,3*i-2);
+    plot(f_u, P1_u, 'r', 'LineWidth', 2);
+    title(['Single-Sided FFT of u\_int\_area with ', window_types{i}, ' Window']);
+    xlabel('Frequency (Hz)');
+    ylabel('Amplitude');
+    grid on;
+
+    subplot(length(window_types),3,3*i-1);
+    plot(f_v, P1_v, 'b', 'LineWidth', 2);
+    title(['Single-Sided FFT of v\_int\_area with ', window_types{i}, ' Window']);
+    xlabel('Frequency (Hz)');
+    ylabel('Amplitude');
+    grid on;
+
+    subplot(length(window_types),3,3*i);
+    plot(f_w, P1_w, 'k', 'LineWidth', 2);
+    title(['Single-Sided FFT of w\_int\_area with ', window_types{i}, ' Window']);
+    xlabel('Frequency (Hz)');
+    ylabel('Amplitude');
+    grid on;
+end
 
 %% 
 %
