@@ -9,4 +9,4 @@ The Matlab file is made in .mlx (MATLAB live script) for faster debugging, but u
 - [x] Number 3 
 - [ ] Number 5
 - [ ] Number 6
-- [ ] Number 7
+- [x] Number 7
