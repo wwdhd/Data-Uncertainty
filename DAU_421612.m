@@ -138,18 +138,15 @@ kappa = 0.41;
 y0 = kappa*delta_v;
 
 syms y
-y = linspace(y0, 1, N); % Wall-normal distance array
 
 % Calculate the mean streamwise velocity using the von Kármán logarithmic law
 w_a = (u_t / kappa) * log(y / y0);
+% |Richardson Extrapolation|
+% |Used for calculating the derivative of an equation. In this case, velocity 
+% gradient is obtained by using Richardson Extrapolation on the von Karman log 
+% velocity profile.|
 
-% Plotting the von Kármán logarithmic law profile
-figure(5);
-plot(y, w_a, '-o', 'LineWidth', 2);
-title('von Kármán Logarithmic Law of the Wall');
-xlabel('$x/\delta$','Interpreter','latex','FontSize',14);
-grid on
-hold off
+
 % |FFT Transformation at x = 0.06 location|
 % |Because of the value of the numerical solution array has no exact x = 0.06 
 % value, the index of which the value is the closest needs to be determined prior 
@@ -217,26 +214,66 @@ for i = 1:length(window_types)
 
     % Plot single-sided FFT for windowed signals
     subplot(length(window_types),3,3*i-2);
-    plot(f_u, P1_u, 'r', 'LineWidth', 2);
-    title(['Single-Sided FFT of u\_int\_area with ', window_types{i}, ' Window']);
+    loglog(f_u, P1_u, 'r', 'LineWidth', 2);
+    title(['$u/u_b$ signal with ', window_types{i}, ' Window'], 'Interpreter','latex');
     xlabel('Frequency (Hz)');
     ylabel('Amplitude');
     grid on;
 
     subplot(length(window_types),3,3*i-1);
-    plot(f_v, P1_v, 'b', 'LineWidth', 2);
-    title(['Single-Sided FFT of v\_int\_area with ', window_types{i}, ' Window']);
+    loglog(f_v, P1_v, 'b', 'LineWidth', 2);
+    title(['$v/u_b$ signal with ', window_types{i}, ' Window'], 'Interpreter','latex');
     xlabel('Frequency (Hz)');
     ylabel('Amplitude');
     grid on;
 
     subplot(length(window_types),3,3*i);
-    plot(f_w, P1_w, 'k', 'LineWidth', 2);
-    title(['Single-Sided FFT of w\_int\_area with ', window_types{i}, ' Window']);
-    xlabel('Frequency (Hz)');
-    ylabel('Amplitude');
+    loglog(f_w, P1_w, 'k', 'LineWidth', 2);
+    title(['$w/u_b$ signal with ', window_types{i}, ' Window'], 'Interpreter','latex');
+    xlabel('Frequency (Hz)', 'Interpreter','latex');
+    ylabel('Amplitude', 'Interpreter','latex');
     grid on;
 end
+%% |Skewness and Kurtosis|
 
+% Normality tests
+fprintf('Skewness of u_smpl: %.4f\n', skewness(u_smpl(:)));
+fprintf('Kurtosis of u_smpl: %.4f\n', kurtosis(u_smpl(:)));
+
+fprintf('Skewness of v_smpl: %.4f\n', skewness(v_smpl(:)));
+fprintf('Kurtosis of v_smpl: %.4f\n', kurtosis(v_smpl(:)));
+
+fprintf('Skewness of w_smpl: %.4f\n', skewness(w_smpl(:)));
+fprintf('Kurtosis of w_smpl: %.4f\n', kurtosis(w_smpl(:)));
+
+% Visualization of PDFs
+figure;
+subplot(3,1,1);
+histogram(u_smpl(:), 'Normalization', 'pdf', 'EdgeColor', 'none');
+title('PDF of u\_smpl');
+xlabel('Velocity');
+ylabel('Probability Density');
+
+subplot(3,1,2);
+histogram(v_smpl(:), 'Normalization', 'pdf', 'EdgeColor', 'none');
+title('PDF of v\_smpl');
+xlabel('Velocity');
+ylabel('Probability Density');
+
+subplot(3,1,3);
+histogram(w_smpl(:), 'Normalization', 'pdf', 'EdgeColor', 'none');
+title('PDF of w\_smpl');
+xlabel('Velocity');
+ylabel('Probability Density');
+
+% Correlation analysis
+alpha = 0.05; % Significance level
+[r_uv, p_uv] = corrcoef(u_smpl(:), v_smpl(:));
+[r_uw, p_uw] = corrcoef(u_smpl(:), w_smpl(:));
+[r_vw, p_vw] = corrcoef(v_smpl(:), w_smpl(:));
+
+fprintf('Correlation between u_smpl and v_smpl: %.4f (p-value: %.4f)\n', r_uv(1,2), p_uv(1,2));
+fprintf('Correlation between u_smpl and w_smpl: %.4f (p-value: %.4f)\n', r_uw(1,2), p_uw(1,2));
+fprintf('Correlation between v_smpl and w_smpl: %.4f (p-value: %.4f)\n', r_vw(1,2), p_vw(1,2));
 %% 
 %
