@@ -5,6 +5,7 @@
 clear
 close all
 clc
+tic
 % |READ CHANNEL PARAMETERS AND SPATIO-TEMPORAL AVERAGES|
 
 % read parameters
@@ -116,66 +117,209 @@ hold off;
 % in wall-normal direction. The other two has near zero value and thus can be 
 % ignored (will have zero gradient in all location)|
 
-w_grad = gradient(w_mean);
-figure(4)
-plot(x_smpl, w_grad, '-k', 'LineWidth', 2)
-title('$\textbf{Mean Streamwise Velocity Gradient}$', 'Interpreter', 'latex', 'FontSize', 14)
-xlabel('$x$', 'Interpreter', 'latex', 'FontSize', 14)
-legend('$w/u_b$', 'Interpreter', 'latex', 'FontSize', 14, 'Location', 'east')
-set(gca, 'TickLabelInterpreter', 'latex', 'FontSize', 14)
+dw_dx = gradient(w_mean, x_smpl);
 
-% Get the handle to the title object
-title_handle = title('$\textbf{Mean Streamwise Velocity Gradient}$', 'Interpreter', 'latex', 'FontSize', 14);
-set(title_handle, 'Position', get(title_handle, 'Position') + [0 0.01 0]); % Adjust the vertical position
-grid on
-hold off
-%% |Analytical|
-% |To capture the nearly identical profile to the numerical result, von Kármán 
-% log velocity profile is used instead of the usual elliptical profile.| 
 
-%von Kármán Log Velocity Profile
+%Analytical Solution Based on symbolic operations
 c_f = 0.026/(Re_b)^(1/7);
 tau_w = 0.5*c_f*rho*u_b^2;
-u_t = sqrt(tau_w/rho);
-delta_v = nu/u_t;
+u_t = 0;
+v_t = 0;
+w_t = sqrt(tau_w/rho);
+delta_v = nu/w_t;
 kappa = 0.41;
-y0 = kappa*delta_v;
+x0 = kappa*delta_v;
 
-syms y
-y = y0:0.01:1
-% Calculate the mean streamwise velocity using the von Kármán logarithmic law
-w_a = (u_t / kappa) * log(y / y0)
 
-w_a_grad = gradient(w_a)
-    
-figure(8)
-plot(y, w_a_grad)
-%%
+du_dx = gradient(u_mean, x_smpl);
+x_smpl_uni = linspace(x0, 1, 126);
 
-% |Richardson Extrapolation|
-% |Used for calculating the derivative of an equation. In this case, velocity 
-% gradient is obtained by using Richardson Extrapolation on the von Karman log 
-% velocity profile.|
+syms w(x) x
+w = w_t / kappa * log(x / x0);
+w_126 = double(subs(w, x, x_smpl_uni));
 
-% Finding the given data step size, considering equidistant sampling
-h1 = (x_smpl(2) - x_smpl(1))/1;
-w_grad_h1 = gradient(w_mean, h1);
+dw_126 = gradient(w_126, x_smpl_uni);
 
-% Determining the finer step size for Richardson extrapolation
-h2 = h1/2;
-w_grad_h2 = gradient(w_mean, h2);
-
-%Richardson Extrapolation for the gradient
-%Assuming second-order convergence
-w_grad_richardson = (4 * w_grad_h2 - w_grad_h1) / 3;
-
-% Plot the Richardson-extrapolated gradient
 figure;
-plot(x_smpl, w_grad_richardson, '-k', 'LineWidth', 2);
-xlabel('$t$', 'Interpreter', 'latex', 'FontSize', 14);
-legend('$w/u_b$', 'Interpreter', 'latex', 'FontSize', 14, 'Location', 'east');
-set(gca, 'TickLabelInterpreter', 'latex', 'FontSize', 14);
-grid on;
+subplot(1,2,1);
+plot(x_smpl_uni, w_126, 'LineWidth', 2)
+hold on
+plot(x_smpl, w_mean, 'LineWidth', 2)
+title('\textbf{Mean Velocity}', 'Interpreter', 'latex', 'FontSize', 14)
+legend('Analytical', 'Numerical', 'Interpreter', 'latex', 'FontSize', 14, 'Location', 'east');
+xlabel('$x/\delta$', 'Interpreter', 'latex', 'FontSize', 14);
+hold off
+
+subplot(1,2,2);
+plot(x_smpl_uni, dw_126, 'LineWidth', 2)
+hold on
+plot(x_smpl, dw_dx, 'LineWidth', 2)
+title('\textbf{Mean Velocity Gradient}', 'Interpreter', 'latex', 'FontSize', 14)
+legend('Analytical', 'Numerical', 'Interpreter', 'latex', 'FontSize', 14, 'Location', 'east');
+xlabel('$x/\delta$', 'Interpreter', 'latex', 'FontSize', 14);
+hold off
+
+error_1 = norm(dw_dx-dw_126,1)
+%%
+%ERROR, 252 POINTS
+n = length(w_mean);
+
+% Elongate x_smpl
+int_x_smpl_252 = NaN(1, 2*n);
+int_x_smpl_252(1:2:end) = x_smpl_uni;
+
+for i = 2:2:2*n-2
+    int_x_smpl_252(i) = (int_x_smpl_252(i-1) + int_x_smpl_252(i+1))/2;
+end
+
+int_x_smpl_252(end) = 0;  % Set the last element to zero
+int_x_smpl_252(end) = int_x_smpl_252(end-1);  % Set the last element to the second last element
+
+% Elongate w_mean
+int_dw_dx_252 = NaN(1, 2*n);
+int_dw_dx_252(1:2:end) = dw_dx;
+
+for i = 2:2:2*n-2
+    int_dw_dx_252(i) = (int_dw_dx_252(i-1) + int_dw_dx_252(i+1))/2;
+end
+
+int_dw_dx_252(end) = 0;  % Set the last element to zero
+int_dw_dx_252(end) = int_dw_dx_252(end-1);  % Set the last element to the second last element
+
+w_252 = double(subs(w, x, int_x_smpl_252));
+dw_252 = gradient(w_252, int_x_smpl_252);
+
+dw_252(end) = 0;
+
+figure;
+plot(int_x_smpl_252, dw_252)
+hold on
+plot(int_x_smpl_252, int_dw_dx_252)
+hold off
+
+error_2 = norm(int_dw_dx_252-dw_252,1)
+%%
+%ERROR, 504 POINTS
+
+% Elongate x_smpl
+int_x_smpl_504 = NaN(1, 4*n);
+int_x_smpl_504(1:2:end) = int_x_smpl_252;
+
+for i = 2:2:4*n-2
+    int_x_smpl_504(i) = (int_x_smpl_504(i-1) + int_x_smpl_504(i+1))/2;
+end
+
+int_x_smpl_504(end) = 0;  % Set the last element to zero
+int_x_smpl_504(end) = int_x_smpl_504(end-1);  % Set the last element to the second last element
+
+% Elongate w_mean
+int_dw_dx_504 = NaN(1, 4*n);
+int_dw_dx_504(1:2:end) = int_dw_dx_252;
+
+for i = 2:2:4*n-2
+    int_dw_dx_504(i) = (int_dw_dx_504(i-1) + int_dw_dx_504(i+1))/2;
+end
+
+int_dw_dx_504(end) = 0;  % Set the last element to zero
+int_dw_dx_504(end) = int_dw_dx_504(end-1);  % Set the last element to the second last element
+
+w_504 = double(subs(w, x, int_x_smpl_504));
+dw_504 = gradient(w_504, int_x_smpl_504);
+
+dw_504(502:504) = 0;
+
+figure;
+plot(int_x_smpl_504, dw_504)
+hold on
+plot(int_x_smpl_504, int_dw_dx_504)
+hold off
+
+error_3 = norm(int_dw_dx_504-dw_504,1)
+%%
+%ERROR, 1008 POINTS
+
+% Elongate x_smpl
+int_x_smpl_1008 = NaN(1, 8*n);
+int_x_smpl_1008(1:2:end) = int_x_smpl_504;
+
+for i = 2:2:8*n-2
+    int_x_smpl_1008(i) = (int_x_smpl_1008(i-1) + int_x_smpl_1008(i+1))/2;
+end
+
+int_x_smpl_1008(end) = 0;  % Set the last element to zero
+int_x_smpl_1008(end) = int_x_smpl_1008(end-1);  % Set the last element to the second last element
+
+% Elongate w_mean
+int_dw_dx_1008 = NaN(1, 8*n);
+int_dw_dx_1008(1:2:end) = int_dw_dx_504;
+
+for i = 2:2:8*n-2
+    int_dw_dx_1008(i) = (int_dw_dx_1008(i-1) + int_dw_dx_1008(i+1))/2;
+end
+
+int_dw_dx_1008(end) = 0;  % Set the last element to zero
+int_dw_dx_1008(end) = int_dw_dx_1008(end-1);  % Set the last element to the second last element
+
+w_1008 = double(subs(w, x, int_x_smpl_1008));
+dw_1008 = gradient(w_1008, int_x_smpl_1008);
+
+dw_1008(1002:1008) = 0;
+
+figure;
+plot(int_x_smpl_1008, dw_1008)
+hold on
+plot(int_x_smpl_1008, int_dw_dx_1008)
+hold off
+
+error_4 = norm(int_dw_dx_1008-dw_1008,1)
+%%
+%ERROR, 2016 POINTS
+
+% Elongate x_smpl
+int_x_smpl_2016 = NaN(1, 16*n);
+int_x_smpl_2016(1:2:end) = int_x_smpl_1008;
+
+for i = 2:2:16*n-2
+    int_x_smpl_2016(i) = (int_x_smpl_2016(i-1) + int_x_smpl_2016(i+1))/2;
+end
+
+int_x_smpl_2016(end) = 0;  % Set the last element to zero
+int_x_smpl_2016(end) = int_x_smpl_2016(end-1);  % Set the last element to the second last element
+
+% Elongate w_mean
+int_dw_dx_2016 = NaN(1, 16*n);
+int_dw_dx_2016(1:2:end) = int_dw_dx_1008;
+
+for i = 2:2:16*n-2
+    int_dw_dx_2016(i) = (int_dw_dx_2016(i-1) + int_dw_dx_2016(i+1))/2;
+end
+
+int_dw_dx_2016(end) = 0;  % Set the last element to zero
+int_dw_dx_2016(end) = int_dw_dx_2016(end-1);  % Set the last element to the second last element
+
+w_2016 = double(subs(w, x, int_x_smpl_2016));
+dw_2016 = gradient(w_2016, int_x_smpl_2016);
+
+dw_2016(2002:2016) = 0;
+
+figure;
+plot(int_x_smpl_2016, dw_2016)
+hold on
+plot(int_x_smpl_2016, int_dw_dx_2016)
+hold off
+
+error_5 = norm(int_dw_dx_2016-dw_2016,1)
+%%
+error_total = [error_1 error_2 error_3 error_4 error_5]
+mesh_size = [126 252 504 1008 2016]
+
+figure;
+plot(mesh_size, error_total)
+
+p = polyfit(mesh_size(2:end), error(2:end), 1);  % fit a straight line to the log-log plot
+error_Richardson = abs(4*(error(2:end) - error(1:end-1))/ 3);
+
+error_comb = [error_total error_Richardson]
 % |FFT Transformation at x = 0.06 location|
 % |Because of the value of the numerical solution array has no exact x = 0.06 
 % value, the index of which the value is the closest needs to be determined prior 
@@ -275,8 +419,6 @@ ylabel('Amplitude');
 grid on;
 
 
-
-
 fftlog_1 = subplot(3,3,7);
 loglog(f_u_fft, P1_u_fft, 'r', 'LineWidth', 2)
 xlabel('Frequency (Hz)');
@@ -325,25 +467,102 @@ for i = 1:length(window_types)
 
     subplot(length(window_types),3,3*i-2);
     loglog(f_u, P1_u, 'r', 'LineWidth', 2);
-    title(['$u/u_b$ signal with ', window_types{i}, ' Window'], 'Interpreter','latex');
-    xlabel('Frequency (Hz)');
-    ylabel('Amplitude');
+    title(['$u/u_b$ signal with ', window_types{i}, ' Window'], 'Interpreter', 'latex', 'FontSize', 14);
+    xlabel('Frequency (Hz)', 'Interpreter', 'latex', 'FontSize', 14);
+    ylabel('Amplitude', 'Interpreter', 'latex', 'FontSize', 14);
     grid on;
 
     subplot(length(window_types),3,3*i-1);
     loglog(f_v, P1_v, 'b', 'LineWidth', 2);
-    title(['$v/u_b$ signal with ', window_types{i}, ' Window'], 'Interpreter','latex');
-    xlabel('Frequency (Hz)');
-    ylabel('Amplitude');
+    title(['$v/u_b$ signal with ', window_types{i}, ' Window'], 'Interpreter', 'latex', 'FontSize', 14);
+    xlabel('Frequency (Hz)', 'Interpreter', 'latex', 'FontSize', 14);
+    ylabel('Amplitude', 'Interpreter', 'latex', 'FontSize', 14);
     grid on;
 
     subplot(length(window_types),3,3*i);
     loglog(f_w, P1_w, 'k', 'LineWidth', 2);
-    title(['$w/u_b$ signal with ', window_types{i}, ' Window'], 'Interpreter','latex');
-    xlabel('Frequency (Hz)', 'Interpreter','latex');
-    ylabel('Amplitude', 'Interpreter','latex');
+    title(['$w/u_b$ signal with ', window_types{i}, ' Window'], 'Interpreter', 'latex', 'FontSize', 14);
+    xlabel('Frequency (Hz)', 'Interpreter', 'latex', 'FontSize', 14);
+    ylabel('Amplitude', 'Interpreter', 'latex', 'FontSize', 14);
     grid on;
 end
+%%
+% Define parameters for filtering
+filter_order = 4;  % Butterworth filter order
+cutoff_frequency = 0.1;  % Butterworth filter cutoff frequency normalized to Nyquist frequency
+
+% Perform FFT and apply different filters for u, v, and w
+u_fft_ma = movmean(u_fft, 5);  % Moving average filtering for u
+v_fft_ma = movmean(v_fft, 5);  % Moving average filtering for v
+w_fft_ma = movmean(w_fft, 5);  % Moving average filtering for w
+
+u_fft_gaussian = imgaussfilt(abs(u_fft));  % Gaussian filtering for u
+v_fft_gaussian = imgaussfilt(abs(v_fft));  % Gaussian filtering for v
+w_fft_gaussian = imgaussfilt(abs(w_fft));  % Gaussian filtering for w
+
+[b, a] = butter(filter_order, cutoff_frequency);  % Butterworth filter coefficients
+u_fft_butter = filter(b, a, u_fft);  % Butterworth filtering for u
+v_fft_butter = filter(b, a, v_fft);  % Butterworth filtering for v
+w_fft_butter = filter(b, a, w_fft);  % Butterworth filtering for w
+
+% FFT Filtering Results for Signal u
+subplot(3, 3, 1);
+loglog(f_u_fft, abs(u_fft_ma(1:L/2+1)), 'r');
+title('$u/u_b$ (Moving Average)', 'Interpreter', 'latex', 'FontSize', 14);
+xlabel('Frequency (Hz)', 'Interpreter', 'latex', 'FontSize', 14);
+ylabel('Magnitude', 'Interpreter', 'latex', 'FontSize', 14);
+
+subplot(3, 3, 4);
+loglog(f_u_fft, abs(u_fft_gaussian(1:L/2+1)), 'r');
+title('$u/u_b$ (Gaussian)', 'Interpreter', 'latex', 'FontSize', 14);
+xlabel('Frequency (Hz)', 'Interpreter', 'latex', 'FontSize', 14);
+ylabel('Magnitude', 'Interpreter', 'latex', 'FontSize', 14);
+
+subplot(3, 3, 7);
+loglog(f_u_fft, abs(u_fft_butter(1:L/2+1)), 'r');
+title('$u/u_b$ (Butterworth)', 'Interpreter', 'latex', 'FontSize', 14);
+xlabel('Frequency (Hz)', 'Interpreter', 'latex', 'FontSize', 14);
+ylabel('Magnitude', 'Interpreter', 'latex', 'FontSize', 14);
+
+% FFT Filtering Results for Signal v
+subplot(3, 3, 2);
+loglog(f_v_fft, abs(v_fft_ma(1:L/2+1)), 'b');
+title('$v/u_b$ (Moving Average)', 'Interpreter', 'latex', 'FontSize', 14);
+xlabel('Frequency (Hz)', 'Interpreter', 'latex', 'FontSize', 14);
+ylabel('Magnitude', 'Interpreter', 'latex', 'FontSize', 14);
+
+subplot(3, 3, 5);
+loglog(f_v_fft, abs(v_fft_gaussian(1:L/2+1)), 'b');
+title('$v/u_b$ (Gaussian)', 'Interpreter', 'latex', 'FontSize', 14);
+xlabel('Frequency (Hz)', 'Interpreter', 'latex', 'FontSize', 14);
+ylabel('Magnitude', 'Interpreter', 'latex', 'FontSize', 14);
+
+subplot(3, 3, 8);
+loglog(f_v_fft, abs(v_fft_butter(1:L/2+1)), 'b');
+title('$v/u_b$ (Butterworth)', 'Interpreter', 'latex', 'FontSize', 14);
+xlabel('Frequency (Hz)', 'Interpreter', 'latex', 'FontSize', 14);
+ylabel('Magnitude', 'Interpreter', 'latex', 'FontSize', 14);
+
+% FFT Filtering Results for Signal w
+subplot(3, 3, 3);
+loglog(f_w_fft, abs(w_fft_ma(1:L/2+1)), 'k');
+title('$w/u_b$ (Moving Average)', 'Interpreter', 'latex', 'FontSize', 14);
+xlabel('Frequency (Hz)', 'Interpreter', 'latex', 'FontSize', 14);
+ylabel('Magnitude', 'Interpreter', 'latex', 'FontSize', 14);
+
+subplot(3, 3, 6);
+loglog(f_w_fft, abs(w_fft_gaussian(1:L/2+1)), 'k');
+title('$w/u_b$ (Gaussian)', 'Interpreter', 'latex', 'FontSize', 14);
+xlabel('Frequency (Hz)', 'Interpreter', 'latex', 'FontSize', 14);
+ylabel('Magnitude', 'Interpreter', 'latex', 'FontSize', 14);
+
+subplot(3, 3, 9);
+loglog(f_w_fft, abs(w_fft_butter(1:L/2+1)), 'k');
+title('$w/u_b$ (Butterworth)', 'Interpreter', 'latex', 'FontSize', 14);
+xlabel('Frequency (Hz)', 'Interpreter', 'latex', 'FontSize', 14);
+ylabel('Magnitude', 'Interpreter', 'latex', 'FontSize', 14);
+
+
 %% |Skewness and Kurtosis|
 
 usmplvect = u_smpl(:);
@@ -399,49 +618,8 @@ alpha = 0.05; % Significance level
 [r_uw, p_uw] = corrcoef(u_smpl(:), w_smpl(:));
 [r_vw, p_vw] = corrcoef(v_smpl(:), w_smpl(:));
 
-fprintf('Correlation between u_smpl and v_smpl: %.4f (p-value: %.4f)\n', r_uv(1,2), p_uv(1,2));
-fprintf('Correlation between u_smpl and w_smpl: %.4f (p-value: %.4f)\n', r_uw(1,2), p_uw(1,2));
-fprintf('Correlation between v_smpl and w_smpl: %.4f (p-value: %.4f)\n', r_vw(1,2), p_vw(1,2));
-%%
-% Define parameters for filtering
-filter_order = 4;  % Butterworth filter order
-cutoff_frequency = 0.1;  % Butterworth filter cutoff frequency normalized to Nyquist frequency
-gaussian_sigma = 2;  % Standard deviation for Gaussian filter
+fprintf('Correlation between u_smpl and v_smpl: %.4f \n', r_uv(1,2));
+fprintf('Correlation between u_smpl and w_smpl: %.4f \n', r_uw(1,2));
+fprintf('Correlation between v_smpl and w_smpl: %.4f \n', r_vw(1,2));
 
-% Perform FFT and apply different filters for u, v, and w
-u_fft_ma = movmean(u_fft, 5);  % Moving average filtering for u
-v_fft_ma = movmean(v_fft, 5);  % Moving average filtering for v
-w_fft_ma = movmean(w_fft, 5);  % Moving average filtering for w
-
-u_fft_gaussian = imgaussfilt(abs(u_fft));  % Gaussian filtering for u
-v_fft_gaussian = imgaussfilt(abs(v_fft));  % Gaussian filtering for v
-w_fft_gaussian = imgaussfilt(abs(w_fft));  % Gaussian filtering for w
-
-[b, a] = butter(filter_order, cutoff_frequency);  % Butterworth filter coefficients
-u_fft_butter = filter(b, a, u_fft);  % Butterworth filtering for u
-v_fft_butter = filter(b, a, v_fft);  % Butterworth filtering for v
-w_fft_butter = filter(b, a, w_fft);  % Butterworth filtering for w
-
-% Plotting the results in one figure
-figure;
-
-subplot(3, 1, 1);
-loglog(f_u_fft, abs(u_fft_ma(1:L/2+1)), 'r', f_u_fft, abs(u_fft_gaussian(1:L/2+1)), 'g', f_u_fft, abs(u_fft_butter(1:L/2+1)), 'b');
-title('FFT Filtering Results for Signal u');
-xlabel('Frequency (Hz)');
-ylabel('Magnitude');
-legend('Moving Average', 'Gaussian', 'Butterworth');
-
-subplot(3, 1, 2);
-loglog(f_v_fft, abs(v_fft_ma(1:L/2+1)), 'r', f_v_fft, abs(v_fft_gaussian(1:L/2+1)), 'g', f_v_fft, abs(v_fft_butter(1:L/2+1)), 'b');
-title('FFT Filtering Results for Signal v');
-xlabel('Frequency (Hz)');
-ylabel('Magnitude');
-legend('Moving Average', 'Gaussian', 'Butterworth');
-
-subplot(3, 1, 3);
-loglog(f_w_fft, abs(w_fft_ma(1:L/2+1)), 'r', f_w_fft, abs(w_fft_gaussian(1:L/2+1)), 'g', f_w_fft, abs(w_fft_butter(1:L/2+1)), 'b');
-title('FFT Filtering Results for Signal w');
-xlabel('Frequency (Hz)');
-ylabel('Magnitude');
-legend('Moving Average', 'Gaussian', 'Butterworth');
+toc
